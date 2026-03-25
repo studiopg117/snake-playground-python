@@ -92,11 +92,10 @@ class SnakeGame:
 
         self.direction = self.pending_direction
         head = self.snake[0]
-        new_head = Point(head.x + self.direction.x, head.y + self.direction.y)
-
-        if not (0 <= new_head.x < GRID_WIDTH and 0 <= new_head.y < GRID_HEIGHT):
-            self.game_over = True
-            return
+        new_head = Point(
+            (head.x + self.direction.x) % GRID_WIDTH,
+            (head.y + self.direction.y) % GRID_HEIGHT,
+        )
 
         if new_head in self.snake:
             self.game_over = True

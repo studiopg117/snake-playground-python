@@ -4,9 +4,9 @@ from dataclasses import dataclass
 import pygame
 
 
-HUD_HEIGHT = 80
-GAME_WIDTH = 640
-GAME_HEIGHT = 640
+HUD_HEIGHT = 40
+GAME_WIDTH = 320
+GAME_HEIGHT = 320
 WINDOW_WIDTH = GAME_WIDTH
 WINDOW_HEIGHT = HUD_HEIGHT + GAME_HEIGHT
 CELL_SIZE = 20
@@ -38,8 +38,8 @@ class SnakeGame:
         pygame.display.set_caption("Snake Playground")
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont("arial", 24)
-        self.large_font = pygame.font.SysFont("arial", 36)
+        self.font = pygame.font.SysFont("arial", 20)
+        self.large_font = pygame.font.SysFont("arial", 28)
         self.reset()
 
     def reset(self) -> None:
@@ -159,11 +159,9 @@ class SnakeGame:
 
         score_surface = self.font.render(f"Score: {self.score}", True, TEXT_COLOR)
         level_surface = self.font.render(f"Level: {self.get_level()}", True, TEXT_COLOR)
-        speed_surface = self.font.render(f"Speed: {self.get_speed()} FPS", True, TEXT_COLOR)
 
-        self.screen.blit(score_surface, (16, 24))
-        self.screen.blit(level_surface, (240, 24))
-        self.screen.blit(speed_surface, (430, 24))
+        self.screen.blit(score_surface, (12, 10))
+        self.screen.blit(level_surface, (170, 10))
 
     def draw_game_over(self) -> None:
         overlay = pygame.Surface((WINDOW_WIDTH, GAME_HEIGHT), pygame.SRCALPHA)

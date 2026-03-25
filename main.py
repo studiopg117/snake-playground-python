@@ -4,12 +4,17 @@ from dataclasses import dataclass
 import pygame
 
 
-WINDOW_WIDTH = 640
-WINDOW_HEIGHT = 640
+HUD_HEIGHT = 80
+GAME_WIDTH = 640
+GAME_HEIGHT = 640
+WINDOW_WIDTH = GAME_WIDTH
+WINDOW_HEIGHT = HUD_HEIGHT + GAME_HEIGHT
 CELL_SIZE = 20
-GRID_WIDTH = WINDOW_WIDTH // CELL_SIZE
-GRID_HEIGHT = WINDOW_HEIGHT // CELL_SIZE
-FPS = 10
+GRID_WIDTH = GAME_WIDTH // CELL_SIZE
+GRID_HEIGHT = GAME_HEIGHT // CELL_SIZE
+BASE_FPS = 6
+MAX_FPS = 20
+FOODS_PER_LEVEL = 5
 
 BACKGROUND_COLOR = (18, 18, 18)
 GRID_COLOR = (32, 32, 32)
@@ -17,6 +22,7 @@ SNAKE_HEAD_COLOR = (80, 220, 120)
 SNAKE_BODY_COLOR = (40, 170, 90)
 FOOD_COLOR = (230, 70, 70)
 TEXT_COLOR = (240, 240, 240)
+HUD_BACKGROUND_COLOR = (28, 28, 28)
 GAME_OVER_COLOR = (255, 210, 120)
 
 
@@ -47,6 +53,7 @@ class SnakeGame:
         self.pending_direction = self.direction
         self.food = self.spawn_food()
         self.score = 0
+        self.foods_eaten = 0
         self.game_over = False
 
     def spawn_food(self) -> Point:
@@ -57,6 +64,15 @@ class SnakeGame:
             if Point(x, y) not in self.snake
         ]
         return random.choice(available_cells)
+
+    def get_level(self) -> int:
+        return self.foods_eaten // FOODS_PER_LEVEL + 1
+
+    def get_points_per_food(self) -> int:
+        return self.get_level()
+
+    def get_speed(self) -> int:
+        return min(BASE_FPS + self.get_level() - 1, MAX_FPS)
 
     def handle_input(self) -> bool:
         for event in pygame.event.get():
@@ -104,15 +120,17 @@ class SnakeGame:
         self.snake.insert(0, new_head)
 
         if new_head == self.food:
-            self.score += 1
+            self.score += self.get_points_per_food()
+            self.foods_eaten += 1
             self.food = self.spawn_food()
         else:
             self.snake.pop()
 
     def draw_grid(self) -> None:
+        pygame.draw.rect(self.screen, BACKGROUND_COLOR, (0, HUD_HEIGHT, GAME_WIDTH, GAME_HEIGHT))
         for x in range(0, WINDOW_WIDTH, CELL_SIZE):
-            pygame.draw.line(self.screen, GRID_COLOR, (x, 0), (x, WINDOW_HEIGHT))
-        for y in range(0, WINDOW_HEIGHT, CELL_SIZE):
+            pygame.draw.line(self.screen, GRID_COLOR, (x, HUD_HEIGHT), (x, WINDOW_HEIGHT))
+        for y in range(HUD_HEIGHT, WINDOW_HEIGHT, CELL_SIZE):
             pygame.draw.line(self.screen, GRID_COLOR, (0, y), (WINDOW_WIDTH, y))
 
     def draw_snake(self) -> None:
@@ -120,7 +138,7 @@ class SnakeGame:
             color = SNAKE_HEAD_COLOR if index == 0 else SNAKE_BODY_COLOR
             rect = pygame.Rect(
                 segment.x * CELL_SIZE,
-                segment.y * CELL_SIZE,
+                HUD_HEIGHT + segment.y * CELL_SIZE,
                 CELL_SIZE,
                 CELL_SIZE,
             )
@@ -129,28 +147,37 @@ class SnakeGame:
     def draw_food(self) -> None:
         rect = pygame.Rect(
             self.food.x * CELL_SIZE,
-            self.food.y * CELL_SIZE,
+            HUD_HEIGHT + self.food.y * CELL_SIZE,
             CELL_SIZE,
             CELL_SIZE,
         )
         pygame.draw.rect(self.screen, FOOD_COLOR, rect, border_radius=6)
 
     def draw_score(self) -> None:
+        pygame.draw.rect(self.screen, HUD_BACKGROUND_COLOR, (0, 0, WINDOW_WIDTH, HUD_HEIGHT))
+        pygame.draw.line(self.screen, GRID_COLOR, (0, HUD_HEIGHT - 1), (WINDOW_WIDTH, HUD_HEIGHT - 1))
+
         score_surface = self.font.render(f"Score: {self.score}", True, TEXT_COLOR)
-        self.screen.blit(score_surface, (12, 10))
+        level_surface = self.font.render(f"Level: {self.get_level()}", True, TEXT_COLOR)
+        speed_surface = self.font.render(f"Speed: {self.get_speed()} FPS", True, TEXT_COLOR)
+
+        self.screen.blit(score_surface, (16, 24))
+        self.screen.blit(level_surface, (240, 24))
+        self.screen.blit(speed_surface, (430, 24))
 
     def draw_game_over(self) -> None:
-        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay = pygame.Surface((WINDOW_WIDTH, GAME_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 150))
-        self.screen.blit(overlay, (0, 0))
+        self.screen.blit(overlay, (0, HUD_HEIGHT))
 
         game_over_text = self.large_font.render("Game Over", True, GAME_OVER_COLOR)
         restart_text = self.font.render(
             "Press Enter, Space, or R to restart", True, TEXT_COLOR
         )
 
-        game_over_rect = game_over_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 20))
-        restart_rect = restart_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 24))
+        game_center_y = HUD_HEIGHT + GAME_HEIGHT // 2
+        game_over_rect = game_over_text.get_rect(center=(WINDOW_WIDTH // 2, game_center_y - 20))
+        restart_rect = restart_text.get_rect(center=(WINDOW_WIDTH // 2, game_center_y + 24))
         self.screen.blit(game_over_text, game_over_rect)
         self.screen.blit(restart_text, restart_rect)
 
@@ -172,7 +199,7 @@ class SnakeGame:
             running = self.handle_input()
             self.update()
             self.draw()
-            self.clock.tick(FPS)
+            self.clock.tick(self.get_speed())
 
         pygame.quit()
 

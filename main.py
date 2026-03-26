@@ -19,7 +19,7 @@ MAX_FPS = 20
 MENU_FPS = 30
 FOODS_PER_LEVEL = 5
 MAX_HIGH_SCORES = 5
-MAX_NAME_LENGTH = 12
+MAX_NAME_LENGTH = 10
 SCORE_FILE = Path("data/high_scores.json")
 
 BACKGROUND_COLOR = (18, 18, 18)
@@ -34,6 +34,10 @@ ACCENT_COLOR = (90, 180, 255)
 MUTED_TEXT_COLOR = (190, 190, 190)
 BUTTON_COLOR = (38, 38, 38)
 BUTTON_HOVER_COLOR = (52, 52, 52)
+MENU_GRADIENT_TOP = (10, 30, 58)
+MENU_GRADIENT_BOTTOM = (8, 12, 22)
+MENU_PANEL_COLOR = (12, 20, 35, 210)
+MENU_TITLE_PANEL_COLOR = (16, 28, 48, 220)
 
 STATE_MENU = "menu"
 STATE_PLAYING = "playing"
@@ -64,6 +68,9 @@ class SnakeGame:
         self.high_scores = self.load_high_scores()
         self.pending_high_score = False
         self.name_input = ""
+        self.caret_visible = True
+        self.caret_blink_ms = 500
+        self.next_caret_toggle_ms = pygame.time.get_ticks() + self.caret_blink_ms
         self.reset()
 
     def reset(self) -> None:
@@ -81,6 +88,8 @@ class SnakeGame:
         self.game_over = False
         self.pending_high_score = False
         self.name_input = ""
+        self.caret_visible = True
+        self.next_caret_toggle_ms = pygame.time.get_ticks() + self.caret_blink_ms
 
     def start_game(self) -> None:
         self.reset()
@@ -177,7 +186,7 @@ class SnakeGame:
         height = 42
         left = (WINDOW_WIDTH - width) // 2
         for index, _ in enumerate(self.menu_options):
-            top = 158 + index * 52
+            top = 168 + index * 52
             rects.append(pygame.Rect(left, top, width, height))
         return rects
 
@@ -234,9 +243,12 @@ class SnakeGame:
         elif event.key == pygame.K_BACKSPACE:
             self.name_input = self.name_input[:-1]
         else:
-            if event.unicode.isprintable() and not event.unicode.isspace():
+            if event.unicode and event.unicode.isprintable():
                 if len(self.name_input) < MAX_NAME_LENGTH:
                     self.name_input += event.unicode
+
+        self.caret_visible = True
+        self.next_caret_toggle_ms = pygame.time.get_ticks() + self.caret_blink_ms
         return True
 
     def handle_playing_input(self, event: pygame.event.Event) -> None:
@@ -286,6 +298,13 @@ class SnakeGame:
         return True
 
     def update(self) -> None:
+        if self.state == STATE_NAME_ENTRY:
+            now = pygame.time.get_ticks()
+            if now >= self.next_caret_toggle_ms:
+                self.caret_visible = not self.caret_visible
+                self.next_caret_toggle_ms = now + self.caret_blink_ms
+            return
+
         if self.state != STATE_PLAYING or self.game_over:
             return
 
@@ -301,6 +320,8 @@ class SnakeGame:
             if self.is_high_score(self.score):
                 self.pending_high_score = True
                 self.name_input = ""
+                self.caret_visible = True
+                self.next_caret_toggle_ms = pygame.time.get_ticks() + self.caret_blink_ms
                 self.state = STATE_NAME_ENTRY
             return
 
@@ -355,27 +376,64 @@ class SnakeGame:
         self.screen.blit(level_surface, (170, 10))
 
     def draw_menu(self) -> None:
-        self.screen.fill(BACKGROUND_COLOR)
-        title = self.title_font.render("Snake Playground", True, TEXT_COLOR)
-        subtitle = self.font.render(
-            "Use keys or click with the mouse", True, MUTED_TEXT_COLOR
-        )
-        self.screen.blit(title, title.get_rect(center=(WINDOW_WIDTH // 2, 80)))
-        self.screen.blit(subtitle, subtitle.get_rect(center=(WINDOW_WIDTH // 2, 118)))
+        for y in range(WINDOW_HEIGHT):
+            ratio = y / WINDOW_HEIGHT
+            color = (
+                int(MENU_GRADIENT_TOP[0] * (1 - ratio) + MENU_GRADIENT_BOTTOM[0] * ratio),
+                int(MENU_GRADIENT_TOP[1] * (1 - ratio) + MENU_GRADIENT_BOTTOM[1] * ratio),
+                int(MENU_GRADIENT_TOP[2] * (1 - ratio) + MENU_GRADIENT_BOTTOM[2] * ratio),
+            )
+            pygame.draw.line(self.screen, color, (0, y), (WINDOW_WIDTH, y))
 
-        for index, (option, rect) in enumerate(zip(self.menu_options, self.get_menu_option_rects())):
+        decor = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        pygame.draw.circle(decor, (60, 140, 210, 65), (66, 62), 72)
+        pygame.draw.circle(decor, (32, 78, 130, 70), (264, 300), 90)
+        pygame.draw.circle(decor, (90, 170, 240, 38), (278, 92), 44)
+        self.screen.blit(decor, (0, 0))
+
+        title_y = 72
+        title = self.title_font.render("Snake Playground", True, TEXT_COLOR)
+        title_shadow = self.title_font.render("Snake Playground", True, (6, 10, 18))
+        subtitle = self.small_font.render(
+            "Keyboard + Mouse Supported", True, MUTED_TEXT_COLOR
+        )
+        title_rect = title.get_rect(center=(WINDOW_WIDTH // 2, title_y))
+        shadow_rect = title_shadow.get_rect(center=(WINDOW_WIDTH // 2 + 2, title_y + 2))
+        self.screen.blit(title_shadow, shadow_rect)
+        self.screen.blit(title, title_rect)
+        self.screen.blit(subtitle, subtitle.get_rect(center=(WINDOW_WIDTH // 2, 102)))
+
+        menu_panel = pygame.Rect(28, 144, WINDOW_WIDTH - 56, 182)
+        panel_surface = pygame.Surface((menu_panel.width, menu_panel.height), pygame.SRCALPHA)
+        panel_surface.fill(MENU_PANEL_COLOR)
+        self.screen.blit(panel_surface, menu_panel.topleft)
+        pygame.draw.rect(self.screen, GRID_COLOR, menu_panel, width=1, border_radius=14)
+
+        for index, (option, rect) in enumerate(
+            zip(self.menu_options, self.get_menu_option_rects())
+        ):
             is_selected = index == self.menu_index or index == self.menu_hover_index
-            color = BUTTON_HOVER_COLOR if is_selected else BUTTON_COLOR
-            text_color = ACCENT_COLOR if is_selected else TEXT_COLOR
+            color = (56, 86, 132) if is_selected else BUTTON_COLOR
+            text_color = (236, 246, 255) if is_selected else TEXT_COLOR
             pygame.draw.rect(self.screen, color, rect, border_radius=10)
-            pygame.draw.rect(self.screen, GRID_COLOR, rect, width=1, border_radius=10)
+            border_color = ACCENT_COLOR if is_selected else GRID_COLOR
+            pygame.draw.rect(self.screen, border_color, rect, width=2, border_radius=10)
             option_surface = self.large_font.render(option, True, text_color)
             self.screen.blit(option_surface, option_surface.get_rect(center=rect.center))
+            if is_selected:
+                indicator = [
+                    (rect.x - 12, rect.centery),
+                    (rect.x - 2, rect.centery - 7),
+                    (rect.x - 2, rect.centery + 7),
+                ]
+                pygame.draw.polygon(self.screen, ACCENT_COLOR, indicator)
 
         footer = self.small_font.render(
-            "Start from the menu before playing.", True, MUTED_TEXT_COLOR
+            "Arrow keys / Enter or mouse click", True, MUTED_TEXT_COLOR
         )
-        self.screen.blit(footer, footer.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 22)))
+        self.screen.blit(
+            footer, footer.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 22))
+        )
 
     def draw_high_scores(self) -> None:
         self.screen.fill(BACKGROUND_COLOR)
@@ -393,12 +451,19 @@ class SnakeGame:
             score_surface = self.font.render(str(score), True, ACCENT_COLOR)
             self.screen.blit(rank_surface, (line_rect.x + 10, line_rect.y + 4))
             self.screen.blit(name_surface, (line_rect.x + 40, line_rect.y + 4))
-            self.screen.blit(score_surface, score_surface.get_rect(midright=(line_rect.right - 12, line_rect.y + 14)))
+            self.screen.blit(
+                score_surface,
+                score_surface.get_rect(
+                    midright=(line_rect.right - 12, line_rect.y + 14)
+                ),
+            )
 
         footer = self.small_font.render(
             "Press Enter, Space, Backspace, or Esc to return", True, MUTED_TEXT_COLOR
         )
-        self.screen.blit(footer, footer.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 22)))
+        self.screen.blit(
+            footer, footer.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 22))
+        )
 
     def draw_name_entry(self) -> None:
         self.screen.fill(BACKGROUND_COLOR)
@@ -406,10 +471,19 @@ class SnakeGame:
         prompt = self.font.render("Enter your name and press Enter", True, TEXT_COLOR)
         score_text = self.font.render(f"Score: {self.score}", True, TEXT_COLOR)
         name_rect = pygame.Rect(40, 180, WINDOW_WIDTH - 80, 44)
-        display_name = self.name_input or "Player"
-        name_surface = self.large_font.render(display_name, True, TEXT_COLOR)
+        has_name_text = len(self.name_input) > 0
+        display_name = self.name_input if has_name_text else "Type your name"
+        name_color = TEXT_COLOR if has_name_text else MUTED_TEXT_COLOR
+        name_surface = self.large_font.render(display_name, True, name_color)
+        caret_x = name_rect.x + 12 + self.large_font.size(self.name_input)[0]
+        caret_x = min(caret_x, name_rect.right - 12)
+        length_hint = self.small_font.render(
+            f"{len(self.name_input)}/{MAX_NAME_LENGTH}", True, MUTED_TEXT_COLOR
+        )
         hint = self.small_font.render(
-            "Blank name uses Player. Esc also submits.", True, MUTED_TEXT_COLOR
+            "Space and Backspace are supported. Blank name uses Player.",
+            True,
+            MUTED_TEXT_COLOR,
         )
 
         self.screen.blit(title, title.get_rect(center=(WINDOW_WIDTH // 2, 92)))
@@ -417,8 +491,19 @@ class SnakeGame:
         self.screen.blit(score_text, score_text.get_rect(center=(WINDOW_WIDTH // 2, 156)))
         pygame.draw.rect(self.screen, BUTTON_COLOR, name_rect, border_radius=10)
         pygame.draw.rect(self.screen, ACCENT_COLOR, name_rect, width=2, border_radius=10)
-        self.screen.blit(name_surface, name_surface.get_rect(center=name_rect.center))
-        self.screen.blit(hint, hint.get_rect(center=(WINDOW_WIDTH // 2, 250)))
+        self.screen.blit(name_surface, (name_rect.x + 12, name_rect.y + 9))
+
+        if self.caret_visible:
+            pygame.draw.line(
+                self.screen,
+                TEXT_COLOR,
+                (caret_x, name_rect.y + 10),
+                (caret_x, name_rect.y + name_rect.height - 10),
+                2,
+            )
+
+        self.screen.blit(length_hint, (name_rect.right - 56, name_rect.bottom + 8))
+        self.screen.blit(hint, hint.get_rect(center=(WINDOW_WIDTH // 2, 272)))
 
     def draw_game_over(self) -> None:
         overlay = pygame.Surface((WINDOW_WIDTH, GAME_HEIGHT), pygame.SRCALPHA)
